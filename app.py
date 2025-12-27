@@ -1,30 +1,47 @@
 from flask import Flask, jsonify
 import requests
+from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 
-TOKEN = "AnRomHyWSrQKZTjYfqce"
-API_URL = f"https://alanchand.com/media/api?token={TOKEN}"
-
-@app.route("/api/gold")
-def gold_api():
+# ===============================
+# API: طلای ۱۸ عیار از tgju
+# ===============================
+@app.route("/api/gold18")
+def gold18():
     try:
-        r = requests.get(API_URL, timeout=10)
-        j = r.json()
+        url = "https://www.tgju.org/profile/geram18"
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
 
-        # حالت معمول: data -> 18ayar
-        if "data" in j and "18ayar" in j["data"]:
-            return jsonify(j["data"]["18ayar"])
+        r = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(r.text, "html.parser")
 
-        # حالت ساده: مستقیم 18ayar
-        if "18ayar" in j:
-            return jsonify(j["18ayar"])
+        price_el = soup.select_one("span[data-col='info.last_trade.PDrCotVal']")
+        change_el = soup.select_one("span[data-col='info.price_change_percent']")
 
-        return jsonify({"error": "invalid api format"})
+        if not price_el:
+            return jsonify({"ok": False, "error": "price not found"})
+
+        return jsonify({
+            "Currency": "gold18",
+            "Price": price_el.text.strip(),
+            "Changes": change_el.text.strip() if change_el else None,
+            "Ok": True,
+            "Source": "tgju.org"
+        })
 
     except Exception as e:
-        return jsonify({"error": str(e)})
+        return jsonify({
+            "Ok": False,
+            "error": str(e)
+        })
 
+
+# ===============================
+# سایت (UI)
+# ===============================
 @app.route("/")
 def index():
     return """
@@ -32,11 +49,11 @@ def index():
 <html lang="fa">
 <head>
 <meta charset="UTF-8">
-<title>قیمت روز طلا</title>
+<title>قیمت طلای ۱۸ عیار</title>
 <style>
 body {
     margin: 0;
-    background: #0f172a;
+    background: radial-gradient(circle at top, #0f172a, #020617);
     color: #fff;
     font-family: Tahoma;
     display: flex;
@@ -49,13 +66,15 @@ body {
     padding: 30px 40px;
     border-radius: 20px;
     text-align: center;
-    box-shadow: 0 0 30px rgba(255,215,0,0.2);
+    box-shadow: 0 0 40px rgba(255,215,0,0.25);
+    min-width: 260px;
 }
 h1 {
     color: gold;
+    margin-bottom: 15px;
 }
 .price {
-    font-size: 32px;
+    font-size: 30px;
     margin: 15px 0;
 }
 .info {
@@ -72,29 +91,29 @@ h1 {
 <div class="card">
     <h1>طلای ۱۸ عیار</h1>
     <div class="price" id="price">در حال دریافت...</div>
-    <div class="info" id="bubble"></div>
-    <div class="info" id="time"></div>
+    <div class="info" id="change"></div>
+    <div class="info" id="source"></div>
 </div>
 
 <script>
-function loadPrice() {
-    fetch("/api/gold")
+function loadGold() {
+    fetch("/api/gold18")
         .then(r => r.json())
-        .then(g => {
-            if (g.error) {
+        .then(d => {
+            if (!d.Ok) {
                 document.getElementById("price").innerHTML =
                     '<span class="error">خطا ❌</span>';
                 return;
             }
 
             document.getElementById("price").innerText =
-                g.price.toLocaleString() + " تومان";
+                d.Price + " تومان";
 
-            document.getElementById("bubble").innerText =
-                "حباب: " + g.bubble.toLocaleString() + " تومان (" + g.bubble_per + "%)";
+            document.getElementById("change").innerText =
+                "تغییر: " + (d.Changes ?? "-");
 
-            document.getElementById("time").innerText =
-                "بروزرسانی: " + g.updated_at;
+            document.getElementById("source").innerText =
+                "منبع: " + d.Source;
         })
         .catch(() => {
             document.getElementById("price").innerHTML =
@@ -102,13 +121,14 @@ function loadPrice() {
         });
 }
 
-loadPrice();
-setInterval(loadPrice, 60000);
+loadGold();
+setInterval(loadGold, 60000);
 </script>
 
 </body>
 </html>
 """
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
