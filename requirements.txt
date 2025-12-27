@@ -1,1 +1,3 @@
-415307960
+flask
+requests
+gunicorn
