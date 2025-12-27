@@ -10,9 +10,20 @@ API_URL = f"https://alanchand.com/media/api?token={TOKEN}"
 def gold_api():
     try:
         r = requests.get(API_URL, timeout=10)
-        return jsonify(r.json())
-    except:
-        return jsonify({"error": "api error"})
+        j = r.json()
+
+        # حالت معمول: data -> 18ayar
+        if "data" in j and "18ayar" in j["data"]:
+            return jsonify(j["data"]["18ayar"])
+
+        # حالت ساده: مستقیم 18ayar
+        if "18ayar" in j:
+            return jsonify(j["18ayar"])
+
+        return jsonify({"error": "invalid api format"})
+
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 @app.route("/")
 def index():
@@ -40,7 +51,9 @@ body {
     text-align: center;
     box-shadow: 0 0 30px rgba(255,215,0,0.2);
 }
-h1 { color: gold; }
+h1 {
+    color: gold;
+}
 .price {
     font-size: 32px;
     margin: 15px 0;
@@ -48,6 +61,9 @@ h1 { color: gold; }
 .info {
     font-size: 14px;
     color: #94a3b8;
+}
+.error {
+    color: #ff4d4d;
 }
 </style>
 </head>
@@ -64,17 +80,25 @@ h1 { color: gold; }
 function loadPrice() {
     fetch("/api/gold")
         .then(r => r.json())
-        .then(data => {
-            const g = data["18ayar"];
+        .then(g => {
+            if (g.error) {
+                document.getElementById("price").innerHTML =
+                    '<span class="error">خطا ❌</span>';
+                return;
+            }
+
             document.getElementById("price").innerText =
                 g.price.toLocaleString() + " تومان";
+
             document.getElementById("bubble").innerText =
                 "حباب: " + g.bubble.toLocaleString() + " تومان (" + g.bubble_per + "%)";
+
             document.getElementById("time").innerText =
                 "بروزرسانی: " + g.updated_at;
         })
         .catch(() => {
-            document.getElementById("price").innerText = "خطا ❌";
+            document.getElementById("price").innerHTML =
+                '<span class="error">خطا ❌</span>';
         });
 }
 
